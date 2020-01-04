@@ -1,0 +1,486 @@
+plugins {
+    id "cpp"
+    id "google-test-test-suite"
+    id "edu.wpi.first.GradleRIO" version "2020.1.2"
+}
+
+import jaci.gradle.nativedeps.*
+
+dependencies {
+    simulation wpi.deps.sim.gui(wpi.platforms.desktop, true)
+}
+
+exec {
+    File file = new File(".conanlog.txt");
+    FileOutputStream out = new FileOutputStream(file, true);
+    out << "--------------------********************-------------------------\n"
+    standardOutput out
+
+    //if(!gradle.startParameter.offline){
+    //    commandLine 'conan', 'install', '.','--profile=linux_to_roborio', '--build=missing', '--install-folder=build/', '--update'
+    //} else {
+    commandLine 'conan', 'install', '.', '--build=missing', '--install-folder=build/'
+    //}
+
+   ignoreExitValue true
+}
+
+// Define my targets (RoboRIO) and artifacts (deployable files)
+// This is added by GradleRIO's backing project EmbeddedTools.
+deploy {
+    targets {
+        roboRIO("roborio") {
+            // Team number is loaded either from the .wpilib/wpilib_preferences.json
+            // or from command line. If not found an exception will be thrown.
+            // You can use getTeamOrDefault(team) instead of getTeamNumber if you
+            // want to store a team number in this file.
+            team = frc.getTeamNumber()
+        }
+
+        //target('raspberryPi'){
+        //    directory = '/home/pi'
+        //    maxChannels = 4
+        //    timeout = 5
+        //    failOnMissing = false
+        //    locations {
+        //        ssh {
+        //            address = "frcvision.local"
+        //            user = 'pi'
+        //            password = 'raspberry'
+        //        }
+        //    }
+        //}
+    }
+    artifacts {
+        frcNativeArtifact('frcCpp') {
+            targets << "roborio"
+            component = 'frcUserProgram'
+            // Debug can be overridden by command line, for use with VSCode
+            debug = frc.getDebugOrDefault(true)
+        }
+
+        // Built in artifact to deploy arbitrary files to the roboRIO.
+        fileTreeArtifact('frcStaticFileDeploy') {
+            // The directory below is the local directory to deploy
+            files = fileTree(dir: 'deploy')
+            // Deploy to RoboRIO target, into /home/lvuser/newConfig
+            targets << "roborio"
+            directory = '/home/lvuser/newConfig'
+        }
+
+        //fileArtifact('chickenVision') {
+        //    targets << "raspberryPi"
+        //    file = file('EctoVision2019/ChickenVision.py')
+        //    filename = 'ChickenVision.py'
+        //}
+    }
+}
+
+// Set this to true to include the src folder in the include directories passed
+// to the compiler. Some eclipse project imports depend on this behavior.
+// We recommend leaving this disabled if possible. Note for eclipse project
+// imports this is enabled by default. For new projects, its disabled
+def includeSrcInIncludeRoot = false
+
+// Defining my C++ project. In this case, it is called 'frcUserProgram',
+// and is of the language C++.
+apply from: "build/dependencies.gradle"
+
+model {
+    components {
+        spdlog(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${spdlog.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${spdlog.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+        eigen(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${eigen.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${eigen.file.toString()}/include/eigen3"
+                        }
+                    }
+                }
+            }
+        }
+        fmt(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${fmt.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${fmt.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        EctoModule(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                lib library: 'boost', linkage: 'static'
+                lib library: 'spdlog', linkage: 'static'
+                lib library: 'fmt', linkage: 'static'
+                lib library: 'EctoSettings', linkage: 'static'
+                lib library: 'EctoUtilities', linkage: 'static'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${EctoModule.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${EctoModule.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        InputHandlers(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${InputHandlers.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${InputHandlers.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+
+        EctoSettings(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                lib library: 'spdlog', linkage: 'static'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${EctoSettings.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${EctoSettings.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        jsonformoderncpp(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${jsonformoderncpp.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${jsonformoderncpp.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        EctoCSV(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${EctoCSV.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${EctoCSV.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        EctoMath(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                lib library: 'jsonformoderncpp', linkage: 'static'
+                lib library: 'EctoCSV', linkage: 'static'
+                lib library: 'EctoUtilities', linkage: 'static'
+
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${EctoMath.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${EctoMath.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        EctoUtilities(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${EctoUtilities.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${EctoUtilities.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        boost(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${boost.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${boost.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+        EctoControl(NativeLibrarySpec) {
+            targetPlatform wpi.platforms.desktop
+            targetPlatform wpi.platforms.roborio
+
+            binaries.all {
+                cppCompiler.args << '-fPIC'
+                lib library: 'jsonformoderncpp', linkage: 'static'
+                lib library: 'EctoUtilities', linkage: 'static'
+                lib library: 'eigen', linkage: 'static'
+                lib library: 'EctoMath', linkage: 'static'
+                lib library: 'EctoCSV', linkage: 'static'
+
+
+                sources {
+                    cpp(CppSourceSet) {
+                        source {
+                            srcDir "${EctoControl.file.toString()}/src"
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir "${EctoControl.file.toString()}/include"
+                        }
+                    }
+                }
+            }
+        }
+
+         EctoSendable(NativeLibrarySpec) {
+                    targetPlatform wpi.platforms.desktop
+                    targetPlatform wpi.platforms.roborio
+
+                    binaries.all {
+                        lib library: 'jsonformoderncpp', linkage: 'static'
+                        lib library: 'boost', linkage: 'static'
+
+                        cppCompiler.args << '-fPIC'
+
+                        sources {
+                            cpp(CppSourceSet) {
+                                source {
+                                    srcDir "${EctoSendable.file.toString()}/src"
+                                    include '**/*.cpp'
+                                }
+                                exportedHeaders {
+                                    srcDir "${EctoSendable.file.toString()}/include"
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+        frcUserProgram(NativeExecutableSpec) {
+            targetPlatform wpi.platforms.roborio
+            targetPlatform wpi.platforms.desktop
+
+            binaries.all {
+                def libraryLink = 'shared'
+
+                if (targetPlatform.name.equals(wpi.platforms.desktop)) libraryLink = 'static'
+
+                lib library: 'spdlog', linkage: libraryLink
+                lib library: 'eigen', linkage: libraryLink
+                lib library: 'fmt', linkage: libraryLink
+                lib library: 'boost', linkage: libraryLink
+                lib library: 'jsonformoderncpp', linkage: libraryLink
+                lib library: 'EctoSettings', linkage: libraryLink
+                lib library: 'EctoControl', linkage: libraryLink
+                lib library: 'EctoUtilities', linkage: libraryLink
+                lib library: 'EctoMath', linkage: libraryLink
+                lib library: 'EctoCSV', linkage: libraryLink
+                lib library: 'EctoSettings', linkage: libraryLink
+                lib library: 'EctoModule', linkage: libraryLink
+                lib library: 'InputHandlers', linkage: libraryLink
+                lib library: 'EctoSendable', linkage: libraryLink
+
+                sources {
+                    cpp(CppSourceSet) {
+                        def target = targetPlatform.name == wpi.platforms.roborio ? 'Robot' : 'Simulation'
+
+                        def projectDir = '"' + project.projectDir.toString() + "/deploy/" + '"'
+
+                        cppCompiler.define('PROJECT_DIR', projectDir)
+                        if(target == 'Simulation') cppCompiler.define('SIMULATION')
+
+                        source {
+                            srcDir 'src/'
+                            srcDir "Wrappers/${target}"
+
+                            include '**/*.cpp'
+                        }
+                        exportedHeaders {
+                            srcDir 'src/'
+                            srcDir 'include/'
+
+                            srcDir "Wrappers/${target}"
+
+                            include '**/*.hpp', '**/*.h'
+                        }
+                    }
+                }
+            }
+
+            wpi.deps.wpilib(it)
+            wpi.deps.vendor.cpp(it)
+        }
+    }
+
+    testSuites {
+        frcUserProgramTest(GoogleTestTestSuiteSpec) {
+            testing $.components.frcUserProgram
+
+            binaries.all {
+                def libraryLink = 'shared'
+
+                if (targetPlatform.name.equals(wpi.platforms.desktop)) libraryLink = 'static'
+
+                lib library: 'spdlog', linkage: libraryLink
+                lib library: 'eigen', linkage: libraryLink
+                lib library: 'fmt', linkage: libraryLink
+                lib library: 'boost', linkage: libraryLink
+                lib library: 'jsonformoderncpp', linkage: libraryLink
+                lib library: 'EctoSettings', linkage: libraryLink
+                lib library: 'EctoControl', linkage: libraryLink
+                lib library: 'EctoUtilities', linkage: libraryLink
+                lib library: 'EctoMath', linkage: libraryLink
+                lib library: 'EctoCSV', linkage: libraryLink
+                lib library: 'EctoSettings', linkage: libraryLink
+                lib library: 'EctoModule', linkage: libraryLink
+                lib library: 'InputHandlers', linkage: libraryLink
+                lib library: 'EctoSendable', linkage: libraryLink
+
+                if (buildType.name == 'release') it.buildable = false
+            }
+
+            sources.cpp {
+                source {
+                    srcDir 'tests'
+                    include '**/*.cpp'
+                }
+            }
+
+            wpi.deps.wpilib(it)
+            wpi.deps.googleTest(it)
+            wpi.deps.vendor.cpp(it)
+        }
+
+    }
+}
+
+
+wrapper {
+    gradleVersion = '6.0.1'
+}
